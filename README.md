@@ -1,5 +1,7 @@
 # PI-hub
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](./LICENSE)
+
 A research hub for a Principal Investigator: a single place to plan projects, track teams, watch submission deadlines, and keep a durable log of what was tried and learned.
 
 ## Who this is for
@@ -64,3 +66,7 @@ The app deploys cleanly as a Next.js project on Vercel. The serverless filesyste
 For a self-hosted node deployment, writes persist normally on the host's filesystem.
 
 See [CONTRIBUTING.md](./CONTRIBUTING.md) for development, validation, and deployment details.
+
+## License
+
+[MIT](./LICENSE) © Shashank Bangalore Lakshman. Contributions welcome — by submitting a PR you agree your contribution is licensed under the same terms.
