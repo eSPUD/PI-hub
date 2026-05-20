@@ -56,14 +56,14 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
     );
   }
 
-  const archive = () => {
+  const archive = async () => {
     if (confirm(`Archive "${project.name}"? It will be hidden from main lists but can be restored from /archives.`)) {
-      updateProject(project.id, { archivedAt: new Date().toISOString() });
+      await updateProject(project.id, { archivedAt: new Date().toISOString() });
       router.push("/projects");
     }
   };
-  const restore = () => {
-    updateProject(project.id, { archivedAt: "" });
+  const restore = async () => {
+    await updateProject(project.id, { archivedAt: "" });
   };
 
   const exportPdf = async () => {

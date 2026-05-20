@@ -127,7 +127,12 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const refresh = useCallback(async () => {
     try {
       const s = await readStore();
-      setStore({ pi: { ...DEFAULT.pi, ...s.pi }, projects: s.projects, members: s.members, cfps: s.cfps });
+      setStore({
+        pi: { ...DEFAULT.pi, ...s.pi },
+        projects: s.projects,
+        members: s.members,
+        cfps: s.cfps,
+      });
     } finally {
       setLoaded(true);
     }
@@ -150,15 +155,20 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const updateProject = useCallback(async (id: string, patch: Partial<Project>) => {
-    let updated: Project | undefined;
-    setStore((s) => {
-      const next = s.projects.map((p) => {
-        if (p.id !== id) return p;
-        const merged: Project = { ...p, ...patch, updatedAt: new Date().toISOString() };
-        updated = merged;
-        return merged;
+    const updated = await new Promise<Project | undefined>((resolve) => {
+      setStore((s) => {
+        const target = s.projects.find((p) => p.id === id);
+        if (!target) {
+          resolve(undefined);
+          return s;
+        }
+        const merged: Project = { ...target, ...patch, updatedAt: new Date().toISOString() };
+        resolve(merged);
+        return {
+          ...s,
+          projects: s.projects.map((p) => (p.id === id ? merged : p)),
+        };
       });
-      return { ...s, projects: next };
     });
     if (updated) await writeProject(updated);
   }, []);
@@ -176,15 +186,20 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const updateMember = useCallback(async (id: string, patch: Partial<Member>) => {
-    let updated: Member | undefined;
-    setStore((s) => {
-      const next = s.members.map((m) => {
-        if (m.id !== id) return m;
-        const merged: Member = { ...m, ...patch, updatedAt: new Date().toISOString() };
-        updated = merged;
-        return merged;
+    const updated = await new Promise<Member | undefined>((resolve) => {
+      setStore((s) => {
+        const target = s.members.find((m) => m.id === id);
+        if (!target) {
+          resolve(undefined);
+          return s;
+        }
+        const merged: Member = { ...target, ...patch, updatedAt: new Date().toISOString() };
+        resolve(merged);
+        return {
+          ...s,
+          members: s.members.map((m) => (m.id === id ? merged : m)),
+        };
       });
-      return { ...s, members: next };
     });
     if (updated) await writeMember(updated);
   }, []);
@@ -199,34 +214,47 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const assignMemberToProject = useCallback(async (projectId: string, memberId: string) => {
-    let updated: Project | undefined;
-    setStore((s) => {
-      const next = s.projects.map((p) => {
-        if (p.id !== projectId) return p;
-        if (p.memberIds.includes(memberId)) return p;
-        const merged = { ...p, memberIds: [...p.memberIds, memberId], updatedAt: new Date().toISOString() };
-        updated = merged;
-        return merged;
+    const updated = await new Promise<Project | undefined>((resolve) => {
+      setStore((s) => {
+        const target = s.projects.find((p) => p.id === projectId);
+        if (!target || target.memberIds.includes(memberId)) {
+          resolve(undefined);
+          return s;
+        }
+        const merged: Project = {
+          ...target,
+          memberIds: [...target.memberIds, memberId],
+          updatedAt: new Date().toISOString(),
+        };
+        resolve(merged);
+        return {
+          ...s,
+          projects: s.projects.map((p) => (p.id === projectId ? merged : p)),
+        };
       });
-      return { ...s, projects: next };
     });
     if (updated) await writeProject(updated);
   }, []);
 
   const unassignMemberFromProject = useCallback(async (projectId: string, memberId: string) => {
-    let updated: Project | undefined;
-    setStore((s) => {
-      const next = s.projects.map((p) => {
-        if (p.id !== projectId) return p;
-        const merged = {
-          ...p,
-          memberIds: p.memberIds.filter((m) => m !== memberId),
+    const updated = await new Promise<Project | undefined>((resolve) => {
+      setStore((s) => {
+        const target = s.projects.find((p) => p.id === projectId);
+        if (!target) {
+          resolve(undefined);
+          return s;
+        }
+        const merged: Project = {
+          ...target,
+          memberIds: target.memberIds.filter((m) => m !== memberId),
           updatedAt: new Date().toISOString(),
         };
-        updated = merged;
-        return merged;
+        resolve(merged);
+        return {
+          ...s,
+          projects: s.projects.map((p) => (p.id === projectId ? merged : p)),
+        };
       });
-      return { ...s, projects: next };
     });
     if (updated) await writeProject(updated);
   }, []);
@@ -239,15 +267,20 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const updateCFP = useCallback(async (id: string, patch: Partial<CallForPaper>) => {
-    let updated: CallForPaper | undefined;
-    setStore((s) => {
-      const next = s.cfps.map((c) => {
-        if (c.id !== id) return c;
-        const merged: CallForPaper = { ...c, ...patch, updatedAt: new Date().toISOString() };
-        updated = merged;
-        return merged;
+    const updated = await new Promise<CallForPaper | undefined>((resolve) => {
+      setStore((s) => {
+        const target = s.cfps.find((c) => c.id === id);
+        if (!target) {
+          resolve(undefined);
+          return s;
+        }
+        const merged: CallForPaper = { ...target, ...patch, updatedAt: new Date().toISOString() };
+        resolve(merged);
+        return {
+          ...s,
+          cfps: s.cfps.map((c) => (c.id === id ? merged : c)),
+        };
       });
-      return { ...s, cfps: next };
     });
     if (updated) await writeCFP(updated);
   }, []);
@@ -266,23 +299,27 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
   const assignProjectToCFP = useCallback(
     async (projectId: string, cfpId: string, status: ProjectCFPStatus = "not_started") => {
-      let updated: Project | undefined;
-      setStore((s) => {
-        const next = s.projects.map((p) => {
-          if (p.id !== projectId) return p;
-          if (p.cfpAssignments.some((a) => a.cfpId === cfpId)) return p;
-          const merged = {
-            ...p,
+      const updated = await new Promise<Project | undefined>((resolve) => {
+        setStore((s) => {
+          const target = s.projects.find((p) => p.id === projectId);
+          if (!target || target.cfpAssignments.some((a) => a.cfpId === cfpId)) {
+            resolve(undefined);
+            return s;
+          }
+          const merged: Project = {
+            ...target,
             cfpAssignments: [
-              ...p.cfpAssignments,
+              ...target.cfpAssignments,
               { cfpId, status, notes: "", assignedAt: new Date().toISOString() },
             ],
             updatedAt: new Date().toISOString(),
           };
-          updated = merged;
-          return merged;
+          resolve(merged);
+          return {
+            ...s,
+            projects: s.projects.map((p) => (p.id === projectId ? merged : p)),
+          };
         });
-        return { ...s, projects: next };
       });
       if (updated) await writeProject(updated);
     },
@@ -291,19 +328,26 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
   const updateCFPAssignment = useCallback(
     async (projectId: string, cfpId: string, patch: Partial<ProjectCFPAssignment>) => {
-      let updated: Project | undefined;
-      setStore((s) => {
-        const next = s.projects.map((p) => {
-          if (p.id !== projectId) return p;
-          const merged = {
-            ...p,
-            cfpAssignments: p.cfpAssignments.map((a) => (a.cfpId === cfpId ? { ...a, ...patch } : a)),
+      const updated = await new Promise<Project | undefined>((resolve) => {
+        setStore((s) => {
+          const target = s.projects.find((p) => p.id === projectId);
+          if (!target) {
+            resolve(undefined);
+            return s;
+          }
+          const merged: Project = {
+            ...target,
+            cfpAssignments: target.cfpAssignments.map((a) =>
+              a.cfpId === cfpId ? { ...a, ...patch } : a,
+            ),
             updatedAt: new Date().toISOString(),
           };
-          updated = merged;
-          return merged;
+          resolve(merged);
+          return {
+            ...s,
+            projects: s.projects.map((p) => (p.id === projectId ? merged : p)),
+          };
         });
-        return { ...s, projects: next };
       });
       if (updated) await writeProject(updated);
     },
@@ -311,19 +355,24 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   );
 
   const unassignProjectFromCFP = useCallback(async (projectId: string, cfpId: string) => {
-    let updated: Project | undefined;
-    setStore((s) => {
-      const next = s.projects.map((p) => {
-        if (p.id !== projectId) return p;
-        const merged = {
-          ...p,
-          cfpAssignments: p.cfpAssignments.filter((a) => a.cfpId !== cfpId),
+    const updated = await new Promise<Project | undefined>((resolve) => {
+      setStore((s) => {
+        const target = s.projects.find((p) => p.id === projectId);
+        if (!target) {
+          resolve(undefined);
+          return s;
+        }
+        const merged: Project = {
+          ...target,
+          cfpAssignments: target.cfpAssignments.filter((a) => a.cfpId !== cfpId),
           updatedAt: new Date().toISOString(),
         };
-        updated = merged;
-        return merged;
+        resolve(merged);
+        return {
+          ...s,
+          projects: s.projects.map((p) => (p.id === projectId ? merged : p)),
+        };
       });
-      return { ...s, projects: next };
     });
     if (updated) await writeProject(updated);
   }, []);

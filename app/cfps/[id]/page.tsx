@@ -79,9 +79,9 @@ export default function CFPDetailPage({ params }: { params: Promise<{ id: string
             {!cfp.archivedAt ? (
               <button
                 className="btn"
-                onClick={() => {
+                onClick={async () => {
                   if (confirm(`Archive CFP "${cfp.name}"? It can be restored from /archives.`)) {
-                    updateCFP(cfp.id, { archivedAt: new Date().toISOString() });
+                    await updateCFP(cfp.id, { archivedAt: new Date().toISOString() });
                     router.push("/cfps");
                   }
                 }}
