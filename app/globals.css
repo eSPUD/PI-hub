@@ -164,7 +164,9 @@ a:hover { text-decoration: underline; }
   padding-top: 12px;
   position: relative;
   display: flex;
-  justify-content: center;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
   width: 100%;
 }
 .side-archive::before {

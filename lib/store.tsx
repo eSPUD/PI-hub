@@ -1,29 +1,28 @@
 "use client";
 import { createContext, useCallback, useContext, useEffect, useState } from "react";
-import type { CallForPaper, Member, PI, Project, ProjectCFPAssignment, ProjectCFPStatus, Store } from "./types";
+import {
+  DEFAULT_PI,
+  deleteCFPRecord,
+  deleteMemberRecord,
+  deleteProjectRecord,
+  readStore,
+  writeCFP,
+  writeMember,
+  writePI,
+  writeProject,
+} from "./idb-store";
+import type {
+  CallForPaper,
+  Member,
+  PI,
+  Project,
+  ProjectCFPAssignment,
+  ProjectCFPStatus,
+  Store,
+} from "./types";
 
 const DEFAULT: Store = {
-  pi: {
-    name: "",
-    title: "Principal Investigator",
-    pronouns: "",
-    affiliation: "eSPUD",
-    location: "",
-    timezone: "",
-    avatarUrl: "",
-    email: "",
-    website: "",
-    orcid: "",
-    googleScholar: "",
-    github: "",
-    linkedin: "",
-    twitter: "",
-    bio: "",
-    focusAreas: [],
-    expertise: [],
-    education: [],
-    publications: [],
-  },
+  pi: DEFAULT_PI,
   projects: [],
   members: [],
   cfps: [],
@@ -45,17 +44,80 @@ type Ctx = {
   updateCFP: (id: string, patch: Partial<CallForPaper>) => Promise<void>;
   deleteCFP: (id: string) => Promise<void>;
   assignProjectToCFP: (projectId: string, cfpId: string, status?: ProjectCFPStatus) => Promise<void>;
-  updateCFPAssignment: (projectId: string, cfpId: string, patch: Partial<ProjectCFPAssignment>) => Promise<void>;
+  updateCFPAssignment: (
+    projectId: string,
+    cfpId: string,
+    patch: Partial<ProjectCFPAssignment>,
+  ) => Promise<void>;
   unassignProjectFromCFP: (projectId: string, cfpId: string) => Promise<void>;
   refresh: () => Promise<void>;
 };
 
 const StoreContext = createContext<Ctx | null>(null);
 
-async function jsonFetch<T>(input: RequestInfo, init?: RequestInit): Promise<T> {
-  const res = await fetch(input, init);
-  if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
-  return (await res.json()) as T;
+export function uid(): string {
+  if (typeof crypto !== "undefined" && "randomUUID" in crypto) return crypto.randomUUID();
+  return Math.random().toString(36).slice(2) + Date.now().toString(36);
+}
+
+function makeProject(data: { name: string; description: string }): Project {
+  const now = new Date().toISOString();
+  return {
+    id: uid(),
+    name: data.name.trim(),
+    description: (data.description ?? "").trim(),
+    status: "exploration",
+    plan: "",
+    setup: "",
+    discord: "",
+    overleaf: "",
+    contributors: [],
+    memberIds: [],
+    artifacts: [],
+    log: [],
+    cfpAssignments: [],
+    archivedAt: "",
+    createdAt: now,
+    updatedAt: now,
+  };
+}
+
+function makeMember(data: { name: string; role?: string; email?: string }): Member {
+  const now = new Date().toISOString();
+  return {
+    id: uid(),
+    name: data.name.trim(),
+    role: (data.role ?? "").trim(),
+    email: (data.email ?? "").trim(),
+    affiliation: "",
+    bio: "",
+    avatarUrl: "",
+    github: "",
+    expertise: [],
+    archivedAt: "",
+    createdAt: now,
+    updatedAt: now,
+  };
+}
+
+function makeCFP(data: Partial<CallForPaper> & { name: string }): CallForPaper {
+  const now = new Date().toISOString();
+  return {
+    id: uid(),
+    name: data.name.trim(),
+    venue: (data.venue ?? "").trim(),
+    url: (data.url ?? "").trim(),
+    abstractDeadline: (data.abstractDeadline ?? "").trim(),
+    submissionDeadline: (data.submissionDeadline ?? "").trim(),
+    notificationDate: (data.notificationDate ?? "").trim(),
+    conferenceDate: (data.conferenceDate ?? "").trim(),
+    location: (data.location ?? "").trim(),
+    topics: Array.isArray(data.topics) ? data.topics : [],
+    notes: (data.notes ?? "").trim(),
+    archivedAt: "",
+    createdAt: now,
+    updatedAt: now,
+  };
 }
 
 export function StoreProvider({ children }: { children: React.ReactNode }) {
@@ -64,13 +126,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
   const refresh = useCallback(async () => {
     try {
-      const s = await jsonFetch<Store>("/api/store");
-      setStore({
-        pi: { ...DEFAULT.pi, ...s.pi },
-        projects: s.projects ?? [],
-        members: s.members ?? [],
-        cfps: s.cfps ?? [],
-      });
+      const s = await readStore();
+      setStore({ pi: { ...DEFAULT.pi, ...s.pi }, projects: s.projects, members: s.members, cfps: s.cfps });
     } finally {
       setLoaded(true);
     }
@@ -82,64 +139,54 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
   const setPI = useCallback(async (pi: PI) => {
     setStore((s) => ({ ...s, pi }));
-    await fetch("/api/pi", {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(pi),
-    });
+    await writePI(pi);
   }, []);
 
   const addProject = useCallback(async (data: { name: string; description: string }) => {
-    const project = await jsonFetch<Project>("/api/projects", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(data),
-    });
+    const project = makeProject(data);
+    await writeProject(project);
     setStore((s) => ({ ...s, projects: [...s.projects, project] }));
     return project;
   }, []);
 
   const updateProject = useCallback(async (id: string, patch: Partial<Project>) => {
-    setStore((s) => ({
-      ...s,
-      projects: s.projects.map((p) =>
-        p.id === id ? { ...p, ...patch, updatedAt: new Date().toISOString() } : p,
-      ),
-    }));
-    await fetch(`/api/projects/${id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(patch),
+    let updated: Project | undefined;
+    setStore((s) => {
+      const next = s.projects.map((p) => {
+        if (p.id !== id) return p;
+        const merged: Project = { ...p, ...patch, updatedAt: new Date().toISOString() };
+        updated = merged;
+        return merged;
+      });
+      return { ...s, projects: next };
     });
+    if (updated) await writeProject(updated);
   }, []);
 
   const deleteProject = useCallback(async (id: string) => {
     setStore((s) => ({ ...s, projects: s.projects.filter((p) => p.id !== id) }));
-    await fetch(`/api/projects/${id}`, { method: "DELETE" });
+    await deleteProjectRecord(id);
   }, []);
 
   const addMember = useCallback(async (data: { name: string; role?: string; email?: string }) => {
-    const member = await jsonFetch<Member>("/api/members", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(data),
-    });
+    const member = makeMember(data);
+    await writeMember(member);
     setStore((s) => ({ ...s, members: [...s.members, member] }));
     return member;
   }, []);
 
   const updateMember = useCallback(async (id: string, patch: Partial<Member>) => {
-    setStore((s) => ({
-      ...s,
-      members: s.members.map((m) =>
-        m.id === id ? { ...m, ...patch, updatedAt: new Date().toISOString() } : m,
-      ),
-    }));
-    await fetch(`/api/members/${id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(patch),
+    let updated: Member | undefined;
+    setStore((s) => {
+      const next = s.members.map((m) => {
+        if (m.id !== id) return m;
+        const merged: Member = { ...m, ...patch, updatedAt: new Date().toISOString() };
+        updated = merged;
+        return merged;
+      });
+      return { ...s, members: next };
     });
+    if (updated) await writeMember(updated);
   }, []);
 
   const deleteMember = useCallback(async (id: string) => {
@@ -148,73 +195,61 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       members: s.members.filter((m) => m.id !== id),
       projects: s.projects.map((p) => ({ ...p, memberIds: p.memberIds.filter((mid) => mid !== id) })),
     }));
-    await fetch(`/api/members/${id}`, { method: "DELETE" });
+    await deleteMemberRecord(id);
   }, []);
 
   const assignMemberToProject = useCallback(async (projectId: string, memberId: string) => {
-    const p = await new Promise<Project | undefined>((resolve) => {
-      setStore((s) => {
-        const next = s.projects.map((proj) => {
-          if (proj.id !== projectId) return proj;
-          if (proj.memberIds.includes(memberId)) return proj;
-          return { ...proj, memberIds: [...proj.memberIds, memberId], updatedAt: new Date().toISOString() };
-        });
-        resolve(next.find((x) => x.id === projectId));
-        return { ...s, projects: next };
+    let updated: Project | undefined;
+    setStore((s) => {
+      const next = s.projects.map((p) => {
+        if (p.id !== projectId) return p;
+        if (p.memberIds.includes(memberId)) return p;
+        const merged = { ...p, memberIds: [...p.memberIds, memberId], updatedAt: new Date().toISOString() };
+        updated = merged;
+        return merged;
       });
+      return { ...s, projects: next };
     });
-    if (p) {
-      await fetch(`/api/projects/${projectId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ memberIds: p.memberIds }),
-      });
-    }
+    if (updated) await writeProject(updated);
   }, []);
 
   const unassignMemberFromProject = useCallback(async (projectId: string, memberId: string) => {
-    const p = await new Promise<Project | undefined>((resolve) => {
-      setStore((s) => {
-        const next = s.projects.map((proj) =>
-          proj.id !== projectId
-            ? proj
-            : { ...proj, memberIds: proj.memberIds.filter((m) => m !== memberId), updatedAt: new Date().toISOString() },
-        );
-        resolve(next.find((x) => x.id === projectId));
-        return { ...s, projects: next };
+    let updated: Project | undefined;
+    setStore((s) => {
+      const next = s.projects.map((p) => {
+        if (p.id !== projectId) return p;
+        const merged = {
+          ...p,
+          memberIds: p.memberIds.filter((m) => m !== memberId),
+          updatedAt: new Date().toISOString(),
+        };
+        updated = merged;
+        return merged;
       });
+      return { ...s, projects: next };
     });
-    if (p) {
-      await fetch(`/api/projects/${projectId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ memberIds: p.memberIds }),
-      });
-    }
+    if (updated) await writeProject(updated);
   }, []);
 
   const addCFP = useCallback(async (data: Partial<CallForPaper> & { name: string }) => {
-    const cfp = await jsonFetch<CallForPaper>("/api/cfps", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(data),
-    });
+    const cfp = makeCFP(data);
+    await writeCFP(cfp);
     setStore((s) => ({ ...s, cfps: [...s.cfps, cfp] }));
     return cfp;
   }, []);
 
   const updateCFP = useCallback(async (id: string, patch: Partial<CallForPaper>) => {
-    setStore((s) => ({
-      ...s,
-      cfps: s.cfps.map((c) =>
-        c.id === id ? { ...c, ...patch, updatedAt: new Date().toISOString() } : c,
-      ),
-    }));
-    await fetch(`/api/cfps/${id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(patch),
+    let updated: CallForPaper | undefined;
+    setStore((s) => {
+      const next = s.cfps.map((c) => {
+        if (c.id !== id) return c;
+        const merged: CallForPaper = { ...c, ...patch, updatedAt: new Date().toISOString() };
+        updated = merged;
+        return merged;
+      });
+      return { ...s, cfps: next };
     });
+    if (updated) await writeCFP(updated);
   }, []);
 
   const deleteCFP = useCallback(async (id: string) => {
@@ -226,92 +261,71 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         cfpAssignments: p.cfpAssignments.filter((a) => a.cfpId !== id),
       })),
     }));
-    await fetch(`/api/cfps/${id}`, { method: "DELETE" });
+    await deleteCFPRecord(id);
   }, []);
 
   const assignProjectToCFP = useCallback(
     async (projectId: string, cfpId: string, status: ProjectCFPStatus = "not_started") => {
-      const now = new Date().toISOString();
-      const updated = await new Promise<Project | undefined>((resolve) => {
-        setStore((s) => {
-          const next = s.projects.map((p) => {
-            if (p.id !== projectId) return p;
-            if (p.cfpAssignments.some((a) => a.cfpId === cfpId)) return p;
-            return {
-              ...p,
-              cfpAssignments: [
-                ...p.cfpAssignments,
-                { cfpId, status, notes: "", assignedAt: now },
-              ],
-              updatedAt: now,
-            };
-          });
-          resolve(next.find((p) => p.id === projectId));
-          return { ...s, projects: next };
+      let updated: Project | undefined;
+      setStore((s) => {
+        const next = s.projects.map((p) => {
+          if (p.id !== projectId) return p;
+          if (p.cfpAssignments.some((a) => a.cfpId === cfpId)) return p;
+          const merged = {
+            ...p,
+            cfpAssignments: [
+              ...p.cfpAssignments,
+              { cfpId, status, notes: "", assignedAt: new Date().toISOString() },
+            ],
+            updatedAt: new Date().toISOString(),
+          };
+          updated = merged;
+          return merged;
         });
+        return { ...s, projects: next };
       });
-      if (updated) {
-        await fetch(`/api/projects/${projectId}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ cfpAssignments: updated.cfpAssignments }),
-        });
-      }
+      if (updated) await writeProject(updated);
     },
     [],
   );
 
   const updateCFPAssignment = useCallback(
     async (projectId: string, cfpId: string, patch: Partial<ProjectCFPAssignment>) => {
-      const updated = await new Promise<Project | undefined>((resolve) => {
-        setStore((s) => {
-          const next = s.projects.map((p) =>
-            p.id !== projectId
-              ? p
-              : {
-                  ...p,
-                  cfpAssignments: p.cfpAssignments.map((a) => (a.cfpId === cfpId ? { ...a, ...patch } : a)),
-                  updatedAt: new Date().toISOString(),
-                },
-          );
-          resolve(next.find((p) => p.id === projectId));
-          return { ...s, projects: next };
+      let updated: Project | undefined;
+      setStore((s) => {
+        const next = s.projects.map((p) => {
+          if (p.id !== projectId) return p;
+          const merged = {
+            ...p,
+            cfpAssignments: p.cfpAssignments.map((a) => (a.cfpId === cfpId ? { ...a, ...patch } : a)),
+            updatedAt: new Date().toISOString(),
+          };
+          updated = merged;
+          return merged;
         });
+        return { ...s, projects: next };
       });
-      if (updated) {
-        await fetch(`/api/projects/${projectId}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ cfpAssignments: updated.cfpAssignments }),
-        });
-      }
+      if (updated) await writeProject(updated);
     },
     [],
   );
 
   const unassignProjectFromCFP = useCallback(async (projectId: string, cfpId: string) => {
-    const updated = await new Promise<Project | undefined>((resolve) => {
-      setStore((s) => {
-        const next = s.projects.map((p) =>
-          p.id !== projectId
-            ? p
-            : {
-                ...p,
-                cfpAssignments: p.cfpAssignments.filter((a) => a.cfpId !== cfpId),
-                updatedAt: new Date().toISOString(),
-              },
-        );
-        resolve(next.find((p) => p.id === projectId));
-        return { ...s, projects: next };
+    let updated: Project | undefined;
+    setStore((s) => {
+      const next = s.projects.map((p) => {
+        if (p.id !== projectId) return p;
+        const merged = {
+          ...p,
+          cfpAssignments: p.cfpAssignments.filter((a) => a.cfpId !== cfpId),
+          updatedAt: new Date().toISOString(),
+        };
+        updated = merged;
+        return merged;
       });
+      return { ...s, projects: next };
     });
-    if (updated) {
-      await fetch(`/api/projects/${projectId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ cfpAssignments: updated.cfpAssignments }),
-      });
-    }
+    if (updated) await writeProject(updated);
   }, []);
 
   return (
@@ -346,9 +360,4 @@ export function useStore() {
   const ctx = useContext(StoreContext);
   if (!ctx) throw new Error("useStore must be used inside <StoreProvider>");
   return ctx;
-}
-
-export function uid(): string {
-  if (typeof crypto !== "undefined" && "randomUUID" in crypto) return crypto.randomUUID();
-  return Math.random().toString(36).slice(2) + Date.now().toString(36);
 }
