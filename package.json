@@ -12,19 +12,23 @@
   },
   "dependencies": {
     "@react-pdf/renderer": "^4.5.1",
+    "idb": "^8.0.3",
     "js-yaml": "^4.1.0",
+    "jszip": "^3.10.1",
     "next": "^15.1.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.3.5",
+    "@serwist/next": "^9.5.11",
     "@types/js-yaml": "^4.0.9",
     "@types/node": "^22.10.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "eslint": "^9.39.4",
     "eslint-config-next": "^16.2.6",
+    "serwist": "^9.5.11",
     "typescript": "^5.7.0"
   }
 }

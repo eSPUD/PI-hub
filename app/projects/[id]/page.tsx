@@ -3,6 +3,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { use, useEffect, useState } from "react";
 import { useStore, uid } from "@/lib/store";
+import { downloadProjectReport } from "@/lib/pdf-client";
 import { Avatar, CFPStatusBadge, Countdown, daysUntil, deadlineUrgency } from "@/components/Bits";
 import {
   CFP_STATUSES,
@@ -65,6 +66,10 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
     updateProject(project.id, { archivedAt: "" });
   };
 
+  const exportPdf = async () => {
+    await downloadProjectReport(project, store.pi, store.members, store.cfps);
+  };
+
   return (
     <div className="stack">
       {project.archivedAt && (
@@ -77,6 +82,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
         project={project}
         onChange={(patch) => updateProject(project.id, patch)}
         onArchive={archive}
+        onExportPdf={exportPdf}
       />
       <PlanSetup project={project} onChange={(patch) => updateProject(project.id, patch)} />
       <CFPAssignments
@@ -314,10 +320,12 @@ function ProjectHeader({
   project,
   onChange,
   onArchive,
+  onExportPdf,
 }: {
   project: Project;
   onChange: (patch: Partial<Project>) => void;
   onArchive: () => void;
+  onExportPdf: () => void | Promise<void>;
 }) {
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState(project.name);
@@ -337,13 +345,14 @@ function ProjectHeader({
       <div className="row-between">
         <Link href="/projects" className="muted">← All projects</Link>
         <div className="row">
-          <a
-            href={`/api/projects/${project.id}/report`}
+          <button
+            type="button"
+            onClick={onExportPdf}
             className="btn"
             title="Download a PDF report of this project"
           >
             ⬇ Export PDF
-          </a>
+          </button>
           {project.discord && (
             <a
               href={project.discord}
