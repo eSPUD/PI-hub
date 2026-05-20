@@ -20,6 +20,16 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               <div className="content">
                 <Topbar />
                 <main className="main">{children}</main>
+                <footer className="app-footer">
+                  <span>
+                    Built by{" "}
+                    <a href="https://shashankbl.github.io" target="_blank" rel="noreferrer">
+                      Shashank Bangalore Lakshman
+                    </a>
+                  </span>
+                  <span className="sep">·</span>
+                  <span>Made with Claude Code and Conductor</span>
+                </footer>
               </div>
             </div>
           </div>
