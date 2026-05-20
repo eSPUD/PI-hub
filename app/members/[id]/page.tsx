@@ -89,9 +89,9 @@ export default function MemberDetailPage({ params }: { params: Promise<{ id: str
             {!member.archivedAt ? (
               <button
                 className="btn"
-                onClick={() => {
+                onClick={async () => {
                   if (confirm(`Archive ${member.name}? Their project assignments are preserved and they can be restored from /archives.`)) {
-                    updateMember(member.id, { archivedAt: new Date().toISOString() });
+                    await updateMember(member.id, { archivedAt: new Date().toISOString() });
                     router.push("/members");
                   }
                 }}
