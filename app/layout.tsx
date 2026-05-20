@@ -33,8 +33,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 <footer className="app-footer">
                   <span>
                     Built by{" "}
-                    <a href="https://shashankbl.github.io" target="_blank" rel="noreferrer">
-                      Shashank Bangalore Lakshman
+                    <a href="https://espud.github.io/eSPUD/" target="_blank" rel="noreferrer">
+                      eSPUD
                     </a>
                   </span>
                   <span className="sep">·</span>
