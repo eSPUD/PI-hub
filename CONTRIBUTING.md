@@ -63,11 +63,14 @@ public/                         # static assets (logo.png)
 Before pushing changes, run:
 
 ```bash
-npm run lint        # ESLint via next lint
-npm run build       # full type-check + production build
+npm run lint        # ESLint (flat config, eslint-config-next)
+npm run typecheck   # tsc --noEmit
+npm run build       # production build (also runs type checking)
 ```
 
-`npm run build` is the most thorough check — it catches TS errors that `next dev` swallows, and confirms the route tree compiles.
+GitHub Actions runs the same three checks on every push to `main` and every PR — see `.github/workflows/ci.yml`. PRs should be green before merging.
+
+`npm run lint:fix` auto-fixes anything ESLint can handle. The lint rule `react-hooks/set-state-in-effect` is downgraded to a warning because the codebase uses the standard pattern of syncing form state when props change; that's intentional and not a bug.
 
 Also worth verifying manually:
 

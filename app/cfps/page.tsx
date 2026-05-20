@@ -3,7 +3,7 @@ import Link from "next/link";
 import { Suspense, useMemo } from "react";
 import { useSearchParams } from "next/navigation";
 import { useStore } from "@/lib/store";
-import { CFPStatusBadge, Countdown, daysUntil, deadlineUrgency } from "@/components/Bits";
+import { CFPStatusBadge, Countdown, daysUntil, deadlineUrgency, useNow } from "@/components/Bits";
 import type { CallForPaper, Project } from "@/lib/types";
 
 const TIMELINE_DAYS_AHEAD = 180;
@@ -182,7 +182,7 @@ function DatePill({ label, date, primary = false }: { label: string; date: strin
 }
 
 function Timeline({ cfps, projects }: { cfps: CallForPaper[]; projects: Project[] }) {
-  const now = Date.now();
+  const now = useNow(60_000);
   const start = now - TIMELINE_DAYS_BEHIND * 86400000;
   const end = now + TIMELINE_DAYS_AHEAD * 86400000;
   const range = end - start;

@@ -158,15 +158,6 @@ function fmtDateOnly(d: string): string {
   return new Date(d + "T00:00:00").toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
 }
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <View style={styles.section} wrap={false}>
-      <Text style={styles.sectionTitle}>{title}</Text>
-      <View>{children}</View>
-    </View>
-  );
-}
-
 function SectionWrap({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <View style={styles.section}>
