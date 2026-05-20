@@ -105,7 +105,7 @@ export default function Sidebar() {
   const pathname = usePathname();
   return (
     <aside className="sidebar">
-      <Link href="/" className="brand-logo" aria-label="PI-hub">
+      <Link href="/about" className="brand-logo" aria-label="About PI-hub" title="About PI-hub">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src="/logo.png" alt="PI-hub" />
       </Link>
